@@ -20,15 +20,14 @@ echo -e "${CYAN}║  Unlock Mac — Remove Reset Protection             ║${NC}
 echo -e "${CYAN}╚═══════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Stop the daemons
-launchctl unload -w /Library/LaunchDaemons/com.joneshipit.block-erase.plist 2>/dev/null
-launchctl unload -w /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist 2>/dev/null
+# Stop the daemon
+launchctl bootout system/com.joneshipit.block-erase 2>/dev/null || launchctl unload -w /Library/LaunchDaemons/com.joneshipit.block-erase.plist 2>/dev/null
 echo -e "${GRN}✓ Stopped erase blocker${NC}"
 
-# Remove the daemon plists
+# Remove the daemon plist (and legacy fallback if present)
 rm -f /Library/LaunchDaemons/com.joneshipit.block-erase.plist
 rm -f /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist
-echo -e "${GRN}✓ Removed LaunchDaemons${NC}"
+echo -e "${GRN}✓ Removed LaunchDaemon${NC}"
 
 # Remove the blocker script
 rm -f /usr/local/bin/block-erase.sh
