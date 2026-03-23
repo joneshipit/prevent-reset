@@ -6,10 +6,7 @@ Perfect for family Macs where someone might accidentally factory reset (and bric
 
 ## How It Works
 
-Installs two lightweight LaunchDaemons that kill the Erase Assistant process whenever it launches:
-
-1. **Event-driven** — uses launchd's `WatchPaths` to trigger only when Erase Assistant is accessed. Zero CPU usage during normal use.
-2. **Fallback** — runs `pkill` every 5 seconds as a safety net. Negligible overhead.
+Installs a lightweight LaunchDaemon that checks every 2 seconds for the Erase Assistant, `erasetool`, or `systemreset` processes and kills them immediately. Negligible CPU overhead (~0.001%). Uses both modern (`launchctl bootstrap`) and legacy (`launchctl load`) syntax for compatibility across macOS versions including Tahoe.
 
 The user keeps full admin access — they can install apps, change settings, do everything. They just can't wipe the Mac.
 
